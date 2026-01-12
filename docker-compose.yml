@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Kafka Broker en modo KRaft combinado (broker + controller en el mismo contenedor)
+  kafka:
+    image: apache/kafka:latest
+    container_name: kafka-broker
+    ports:
+      # Puerto para conexiones desde el host (Colab, VM Linux, etc.)
+      - "9092:9092"
+      # Puerto del controller (interno)
+      - "9093:9093"
+    environment:
+      # Configuración del nodo
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      
+      # Listeners: uno para clientes externos (host) y otro para comunicación interna
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      
+      # Configuración del controller
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      
+      # Configuración de topics y replicación (para desarrollo local)
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      
+      # Número de particiones por defecto para nuevos topics
+      KAFKA_NUM_PARTITIONS: 3
+      
+      # Log retention (opcional, para desarrollo)
+      KAFKA_LOG_RETENTION_HOURS: 168  # 7 días
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824  # 1GB
+    volumes:
+      # Persistencia de datos (opcional)
+      - kafka-data:/var/lib/kafka/data
+    networks:
+      - kafka-network
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  kafka-data:
+    driver: local
+
+networks:
+  kafka-network:
+    driver: bridge
